@@ -4,12 +4,24 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { ideaPipeline, watchlist, researchQueue } from "@/lib/mock-data";
+import { getIdeaPipeline, getWatchlist, getResearchQueue } from "@/lib/data/research";
 import { fmtPct, pnlColor } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 const pipelineStatusOrder = ["Idea bruta", "En research", "Modelada", "Memo pendiente", "Aprobada", "En cartera", "Watchlist", "Rechazada"] as const;
 
-export default function ResearchPage() {
+export default async function ResearchPage() {
+  const [ideaPipeline, watchlist, researchQueue] = await Promise.all([
+    getIdeaPipeline(),
+    getWatchlist(),
+    getResearchQueue(),
+  ]);
+  const sortedIdeas = [...ideaPipeline].sort(
+    (a, b) => pipelineStatusOrder.indexOf(a.status) - pipelineStatusOrder.indexOf(b.status),
+  );
+  const sortedWatchlist = [...watchlist].sort((a, b) => b.score - a.score);
+
   return (
     <div>
       <PageHeader
@@ -37,21 +49,19 @@ export default function ResearchPage() {
               </TR>
             </THead>
             <TBody>
-              {ideaPipeline
-                .sort((a, b) => pipelineStatusOrder.indexOf(a.status) - pipelineStatusOrder.indexOf(b.status))
-                .map((i) => (
-                  <TR key={i.id}>
-                    <TD>
-                      <Link href={`/companies/${encodeURIComponent(i.ticker)}`} className="text-accent hover:underline font-medium">{i.ticker}</Link>
-                    </TD>
-                    <TD>{i.name}</TD>
-                    <TD><Badge tone={i.side === "Long" ? "pos" : "neg"}>{i.side}</Badge></TD>
-                    <TD className="text-fg-muted text-xs">{i.sector}</TD>
-                    <TD><Badge tone={i.status === "En cartera" ? "pos" : i.status === "Rechazada" ? "neg" : "muted"}>{i.status}</Badge></TD>
-                    <TD><Badge tone={i.conviction === "Alta" ? "pos" : i.conviction === "Media" ? "warn" : "muted"}>{i.conviction}</Badge></TD>
-                    <TD className="text-fg-muted text-xs">{i.nextStep}</TD>
-                  </TR>
-                ))}
+              {sortedIdeas.map((i) => (
+                <TR key={i.id}>
+                  <TD>
+                    <Link href={`/companies/${encodeURIComponent(i.ticker)}`} className="text-accent hover:underline font-medium">{i.ticker}</Link>
+                  </TD>
+                  <TD>{i.name}</TD>
+                  <TD><Badge tone={i.side === "Long" ? "pos" : "neg"}>{i.side}</Badge></TD>
+                  <TD className="text-fg-muted text-xs">{i.sector}</TD>
+                  <TD><Badge tone={i.status === "En cartera" ? "pos" : i.status === "Rechazada" ? "neg" : "muted"}>{i.status}</Badge></TD>
+                  <TD><Badge tone={i.conviction === "Alta" ? "pos" : i.conviction === "Media" ? "warn" : "muted"}>{i.conviction}</Badge></TD>
+                  <TD className="text-fg-muted text-xs">{i.nextStep}</TD>
+                </TR>
+              ))}
             </TBody>
           </Table>
         </CardBody>
@@ -76,7 +86,7 @@ export default function ResearchPage() {
                 </TR>
               </THead>
               <TBody>
-                {watchlist.sort((a, b) => b.score - a.score).map((w) => (
+                {sortedWatchlist.map((w) => (
                   <TR key={w.ticker}>
                     <TD><Link className="text-accent hover:underline font-medium" href={`/companies/${encodeURIComponent(w.ticker)}`}>{w.ticker}</Link></TD>
                     <TD>{w.name}</TD>

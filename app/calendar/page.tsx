@@ -3,10 +3,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { calendarEvents, positions, alerts } from "@/lib/mock-data";
+import { getCalendarEvents, getAlerts } from "@/lib/data/research";
+import { getPositions } from "@/lib/data/portfolio";
 import { severityColor } from "@/lib/utils";
 
-const portfolioTickers = new Set(positions.map(p => p.ticker));
+export const dynamic = "force-dynamic";
 
 const typeTone: Record<string, "pos" | "neg" | "warn" | "info" | "muted" | "accent" | "default"> = {
   Earnings: "warn",
@@ -18,8 +19,14 @@ const typeTone: Record<string, "pos" | "neg" | "warn" | "info" | "muted" | "acce
   Internal: "muted",
 };
 
-export default function CalendarPage() {
-  const today = "2026-05-12";
+export default async function CalendarPage() {
+  const [calendarEvents, positions, alerts] = await Promise.all([
+    getCalendarEvents(),
+    getPositions(),
+    getAlerts(),
+  ]);
+  const portfolioTickers = new Set(positions.map(p => p.ticker));
+  const today = new Date().toISOString().slice(0, 10);
   const upcoming = calendarEvents
     .filter(e => e.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date));

@@ -2,9 +2,12 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { RunButton } from "@/components/agents/RunButton";
-import { sectors } from "@/lib/mock-data";
+import { getSectors } from "@/lib/data/research";
 
-export default function SectorsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function SectorsPage() {
+  const sectors = await getSectors();
   return (
     <div>
       <PageHeader

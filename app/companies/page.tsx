@@ -3,10 +3,22 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { companies, positions, theses } from "@/lib/mock-data";
+import { getCompanies } from "@/lib/data/companies";
+import { getPositions } from "@/lib/data/portfolio";
+import { getTheses } from "@/lib/data/research";
 import { fmtPct, pnlColor } from "@/lib/utils";
 
-export default function CompaniesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function CompaniesPage() {
+  const [companies, positions, theses] = await Promise.all([
+    getCompanies(),
+    getPositions(),
+    getTheses(),
+  ]);
+  const posByTicker = new Map(positions.map((p) => [p.ticker, p]));
+  const thesisByTicker = new Map(theses.map((t) => [t.ticker, t]));
+
   return (
     <div>
       <PageHeader
@@ -40,8 +52,8 @@ export default function CompaniesPage() {
             </THead>
             <TBody>
               {companies.map((c) => {
-                const pos = positions.find(p => p.ticker === c.ticker);
-                const thesis = theses.find(t => t.ticker === c.ticker);
+                const pos = posByTicker.get(c.ticker);
+                const thesis = thesisByTicker.get(c.ticker);
                 return (
                   <TR key={c.ticker}>
                     <TD>

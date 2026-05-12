@@ -5,10 +5,18 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { RunButton } from "@/components/agents/RunButton";
-import { alerts, positions, kpis } from "@/lib/mock-data";
+import { getKpis, getPositions } from "@/lib/data/portfolio";
+import { getAlerts } from "@/lib/data/research";
 import { fmtPct, pnlColor, severityColor } from "@/lib/utils";
 
-export default function ControlPage() {
+export const dynamic = "force-dynamic";
+
+export default async function ControlPage() {
+  const [positions, alerts, kpis] = await Promise.all([
+    getPositions(),
+    getAlerts(),
+    getKpis(),
+  ]);
   const overweight = positions.filter(p => Math.abs(p.weight) > 8);
   const drawdowns = positions.filter(p => p.unrealizedPnlPct < -10);
 
