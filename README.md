@@ -2,46 +2,64 @@
 
 **Portfolio Management OS** — mini-Bloomberg + research workspace + monthly factsheet engine + Claude agents.
 
-Una plataforma privada para gestionar inversiones como si fueras un fondo profesional: cartera, performance, exposiciones, fichas de empresa con tesis, modelos de valoración, earnings, noticias, calendario de catalizadores, monthly factsheets y un panel de agentes Claude **realmente conectados** a tu cartera.
+Una plataforma privada para gestionar inversiones como si fueras un fondo profesional: cartera, performance, exposiciones, fichas de empresa con tesis, modelos de valoración, earnings, noticias, calendario de catalizadores, monthly factsheets y un panel de agentes Claude **contextualizados** con tu cartera real.
 
 ## Stack
 
-- Next.js 15 (App Router) + React 19 RC
+- Next.js 15 (App Router) + React 19 RC, todo en async server components
 - TypeScript estricto
 - Tailwind CSS (tema dark tipo terminal)
 - Recharts para gráficos
 - **`@anthropic-ai/sdk` con prompt caching + adaptive thinking** (claude-opus-4-7)
-- Capa de datos mock (`lib/mock-data.ts`) lista para migrar a Supabase/Postgres
+- **Prisma + Postgres** como capa de datos canónica (Supabase/Neon-ready)
+- Fallback automático a dataset mock en `lib/mock-data.ts` cuando no hay `DATABASE_URL` — cero fricción en dev
 
 ## Cómo correr
 
+### Modo dev rápido (sin DB)
+
 ```bash
 cp .env.example .env.local
-# añade tu ANTHROPIC_API_KEY
+# añade tu ANTHROPIC_API_KEY (deja DATABASE_URL vacío)
 npm install
 npm run dev          # http://localhost:3000
 ```
 
+La UI funciona contra el mock dataset embebido. Los runs de Claude se guardan en `data/agent-runs/*.json`.
+
+### Modo dev con DB real
+
+```bash
+cp .env.example .env.local
+# añade ANTHROPIC_API_KEY y DATABASE_URL=postgresql://lynx:lynx@localhost:5432/lynx_terminal?schema=public
+
+docker compose up -d postgres
+npm install                # corre `prisma generate` automáticamente
+npm run db:migrate         # crea tablas a partir de prisma/schema.prisma
+npm run db:seed            # hidrata desde lib/mock-data.ts
+npm run dev
+```
+
+Cada página detecta `DATABASE_URL`. Si está, lee de Postgres. Si no, usa mock. Mismas interfaces, sin if-else en la UI.
+
+Scripts útiles:
+
+```bash
+npm run db:studio   # Prisma Studio (UI para inspeccionar la DB)
+npm run db:reset    # tira la DB y vuelve a migrar (sin seed)
+npm run db:seed     # re-seed idempotente
+npm run typecheck   # tsc --noEmit
+```
+
 ## Phases
 
-### ✅ Fase 1 — Chasis completo (visible)
+### ✅ Fase 1 — Chasis completo
 
-Toda la navegación de la spec implementada con datos mock realistas:
-
-- **Dashboard** con 8 KPIs principales, NAV vs benchmark, drawdown, mensuales, 4 pies de exposición, top contributors/detractors, alertas, research queue y atajos a agentes.
-- **Portfolio**: posiciones (P/L, peso, convicción, estado tesis), histórico de operaciones, performance vs benchmark con 12 métricas de riesgo, exposiciones por sector/región/market cap/divisa/estilo con overweights vs benchmark.
-- **Empresas**: listado + ficha completa por ticker con tesis estructurada, modelos (FV base/bear/bull), earnings vs consenso, noticias clasificadas por IA con impacto en tesis, calendario y value creation plan.
-- **Research**: pipeline de ideas (8 estados), watchlist con scoring, sector library.
-- **Calendario**: macro, earnings, investor days, eventos por cartera, alertas activas.
-- **Control Room**: alertas con acción sugerida, overweights, drawdowns individuales.
-- **Reporting**: monthly factsheet completo.
-- **Claude Agents**: catálogo de 30+ skills agrupadas por área.
+Toda la navegación implementada con datos mock: Dashboard, Portfolio (posiciones/operaciones/performance/exposures), Companies + ficha por ticker, Research + sectors, Calendar, Control Room, Reporting (monthly factsheet), Claude Agents.
 
 ### ✅ Fase 2A — Claude Agents end-to-end
 
-**Los botones de skills realmente llaman a Claude**, con contexto completo de tu cartera y caching de prompt para que cada run sea barato.
-
-**Skills activas hoy:**
+5 skills realmente conectadas a Claude (`claude-opus-4-7` + adaptive thinking + prompt caching):
 
 | Skill | Área | Dónde se lanza |
 |---|---|---|
@@ -51,87 +69,69 @@ Toda la navegación de la spec implementada con datos mock realistas:
 | `valuation-reviewer` | Control | Dashboard · Control Room · `/agents` |
 | `idea-generation` | Análisis | Sector Library · Dashboard · `/agents` |
 
-**Arquitectura:**
+El contexto de cartera (~5-15K tokens) viaja con `cache_control: { type: "ephemeral" }`: primer run paga ~1.25x, runs subsiguientes en la ventana de 5 min pagan ~0.1x sobre la parte cacheada.
 
-```
-Click "Analizar resultados" en BABA
-    │
-    ▼
-RunButton (client component)
-    │  POST /api/agents/run { skillId: "earnings-analysis", ticker: "BABA" }
-    ▼
-app/api/agents/run/route.ts (server, nodejs runtime)
-    │
-    ▼
-runSkill(skillId, input)  → lib/anthropic/run.ts
-    │
-    │  1. buildCarteraContext()   → un blob estable con NAV, KPIs, posiciones,
-    │     tesis, modelos, earnings, news, calendario, alertas, exposiciones
-    │     Va con cache_control: { type: "ephemeral" }  →  cache hit en runs siguientes
-    │
-    │  2. skill.buildUserInstructions({ticker})  → instrucciones específicas + ticker focus
-    │
-    │  3. client.messages.create({
-    │       model: "claude-opus-4-7",
-    │       thinking: { type: "adaptive" },
-    │       output_config: { effort: "high" | "xhigh" },
-    │       messages: [{ role: "user", content: [cachedContext, instructions] }]
-    │     })
-    │
-    │  4. Persiste el run en data/agent-runs/<id>.json
-    │
-    ▼
-Response con markdown → RunDialog renderiza con react-markdown
-    │
-    └─ Copiar / Descargar .md / cerrar
-```
+### ✅ Fase 2B — Database real (Prisma + Postgres)
 
-**Prompt caching**: el contexto de cartera (~5-15K tokens) se cachea con `cache_control: { type: "ephemeral" }`. El primer run paga ~1.25x; runs subsiguientes en la misma ventana de 5 min pagan ~0.1x sobre la parte cacheada. Visible en `RunDialog` (cache write / cache read).
+- `prisma/schema.prisma` modela el dominio completo: Portfolio, Company, Position, Transaction, Thesis, ValuationModel, Earnings, News, CalendarEvent, Alert, IdeaPipelineItem, WatchlistItem, Sector, NavPoint, AnnualReturn, PortfolioKpi, AgentRun.
+- `prisma/seed.ts` es idempotente: hidrata todo desde `lib/mock-data.ts`.
+- `docker-compose.yml` levanta Postgres 16 local (puerto 5432, credenciales `lynx:lynx`).
+- **Capa repositorio** en `lib/data/*` con la misma forma que los exports de `mock-data.ts` pero async. Cuando `DATABASE_URL` está, lee de Prisma; cuando no, devuelve el mock. Cero `if` en la UI.
+- **Todas las páginas y `Header` pasan a `async` server components** y consumen `lib/data/*`.
+- `lib/anthropic/context.ts` (el prompt cacheable) también lee de la capa de datos: cuando hay DB, el contexto pasado al agente es el de la DB.
+- `lib/storage/agent-runs.ts` graba en la tabla `AgentRun` si hay DB; filesystem JSON si no.
+- Compatibilidad: el mismo build funciona contra Supabase / Neon / Vercel Postgres / RDS — solo cambia `DATABASE_URL`.
 
-**Storage**: runs persistidos como JSON en `data/agent-runs/`. Sustituible por Supabase en 2B sin tocar UI (la API ya devuelve la misma forma).
-
-**Skills no implementadas** del catálogo (`audit-xls`, `dcf-model`, etc.) aparecen como "pendiente" en la UI — el chasis está, solo falta escribir el prompt y conectar.
-
-### ⏭️ Fase 2B — Database (pendiente)
-
-- Supabase / Postgres con Prisma
-- Schema generado desde `lib/types.ts`
-- Seed que migra `lib/mock-data.ts` a la DB
-- Repository pattern: `lib/data.ts` con fallback a mock si no hay `DATABASE_URL`
-- Migra `data/agent-runs/` → tabla `agent_runs`
+**Migración Phase 2A → 2B:** los runs viejos en `data/agent-runs/*.json` no se migran automáticamente (decisión consciente: empezar limpios en DB). Si los quieres importar, hay un script trivial pendiente.
 
 ### ⏭️ Fase 2C — Market data ingest (pendiente)
 
-- Cliente FMP / EODHD para precios diarios
-- IBKR Flex Query para operaciones reales
-- Worker cron en Next.js (o queue separada) para refrescar
+- Cliente FMP / EODHD para precios diarios → actualiza `Position.currentPrice` + crea `NavPoint`
+- IBKR Flex Query → ingesta de operaciones reales como `Transaction`
 - SEC EDGAR + news APIs para filings y noticias
+- Job scheduler (cron en Next.js o queue separada) para refresco periódico
+- Worker que recalcula KPIs y guarda nueva fila en `PortfolioKpi` cada día
+
+## Arquitectura de datos
+
+```
+┌──────────────────────────────────────┐
+│  Pages (async server components)    │
+│  app/page.tsx, /portfolio, /companies, ...
+└────────────────┬────────────────────┘
+                 │ await getKpis() / getPositions() / ...
+                 ▼
+┌──────────────────────────────────────┐
+│  lib/data/* (repository layer)      │
+│  portfolio.ts · companies.ts · research.ts · exposures.ts
+└────────────────┬────────────────────┘
+                 │ if DATABASE_URL: prisma.{table}.findMany
+                 │ else:            return mock.X
+                 ▼
+       ┌─────────────────┐  ┌──────────────────┐
+       │  Postgres       │  │ lib/mock-data.ts │
+       │  (Prisma)       │  │ (in-memory)      │
+       └─────────────────┘  └──────────────────┘
+                 ▲
+                 │ npm run db:seed
+       prisma/seed.ts ◄── lib/mock-data.ts
+```
 
 ## Estructura
 
 ```
 app/
 ├── page.tsx                     # Dashboard
-├── portfolio/
-│   ├── page.tsx                 # Posiciones
-│   ├── transactions/page.tsx    # Histórico de operaciones
-│   ├── performance/page.tsx     # Track record + métricas riesgo
-│   └── exposures/page.tsx       # Sector / región / market cap / estilo
-├── companies/
-│   ├── page.tsx                 # Universo cubierto
-│   └── [ticker]/page.tsx        # Ficha completa
-├── research/
-│   ├── page.tsx                 # Idea pipeline + watchlist + research queue
-│   └── sectors/page.tsx         # Sector library con idea-generation por sector
-├── calendar/page.tsx            # Macro + earnings + investor days
+├── portfolio/{page,transactions,performance,exposures}/
+├── companies/{page,[ticker]}/
+├── research/{page,sectors}/
+├── calendar/page.tsx
 ├── control/page.tsx             # Control Room
 ├── reporting/page.tsx           # Monthly factsheet
-├── agents/page.tsx              # Catálogo Claude agents + últimos runs (lee data/agent-runs/)
+├── agents/page.tsx              # Catálogo Claude agents + últimos runs
 └── api/agents/
     ├── run/route.ts             # POST: ejecuta una skill contra Claude
-    └── runs/
-        ├── route.ts             # GET: lista runs
-        └── [id]/route.ts        # GET: detalle de un run
+    └── runs/{route, [id]}/
 
 components/
 ├── layout/   Sidebar, Header, SubNav, PageHeader
@@ -140,22 +140,28 @@ components/
 └── agents/   RunButton, RunDialog, MarkdownView, SkillCard
 
 lib/
-├── types.ts                     # Modelo de dominio
-├── mock-data.ts                 # Dataset realista (positions, theses, models, news...)
+├── types.ts                     # Modelo de dominio TypeScript
+├── mock-data.ts                 # Dataset embebido + seed source
 ├── utils.ts                     # Formatters, color helpers
+├── db.ts                        # Prisma client singleton + hasDatabase()
+├── data/                        # ◄── REPOSITORIO ASYNC (Phase 2B)
+│   ├── portfolio.ts             #     getKpis, getPositions, getTransactions, ...
+│   ├── companies.ts             #     getCompanies, getCompany
+│   ├── research.ts              #     getTheses, getValuationModels, getNews, ...
+│   └── exposures.ts             #     getExposures, getTopContributors, ...
 ├── anthropic/
-│   ├── client.ts                # SDK client + DEFAULT_MODEL
-│   ├── context.ts               # buildCarteraContext + buildTickerFocus
-│   ├── run.ts                   # runSkill — Anthropic API call + cache + persist
-│   └── skills/
-│       ├── index.ts             # registry
-│       ├── earnings-analysis.ts
-│       ├── thesis-tracker.ts
-│       ├── morning-note.ts
-│       ├── valuation-reviewer.ts
-│       └── idea-generation.ts
+│   ├── client.ts
+│   ├── context.ts               # buildCarteraContext (ASYNC, lee de lib/data)
+│   ├── run.ts
+│   └── skills/{earnings-analysis,thesis-tracker,morning-note,valuation-reviewer,idea-generation}.ts
 └── storage/
-    └── agent-runs.ts            # filesystem JSON storage
+    └── agent-runs.ts            # DB cuando hay DATABASE_URL, filesystem cuando no
+
+prisma/
+├── schema.prisma                # ◄── ESQUEMA CANÓNICO (Phase 2B)
+└── seed.ts                      # idempotent upsert desde lib/mock-data.ts
+
+docker-compose.yml               # Postgres 16 local
 ```
 
 ## Filosofía de diseño
@@ -163,5 +169,6 @@ lib/
 - **Dark terminal aesthetic** (#0a0d12 base, accent ámbar) — Bloomberg/Koyfin feel.
 - **Numeric monospace** con `font-variant-numeric: tabular-nums` para todas las cifras.
 - **Densidad alta** sin sacrificar legibilidad.
-- **IA contextualizada, no chatbot** — cada skill recibe el contexto que necesita, devuelve un artefacto, queda guardado.
-- **Prompt caching first** — el contexto pesado (estado del fondo) se cachea para que los runs sean baratos.
+- **IA contextualizada, no chatbot** — cada skill recibe contexto, devuelve un artefacto, queda guardado.
+- **Prompt caching first** — el contexto pesado se cachea para que los runs sean baratos.
+- **Capa de datos asincrónica** desde el día 1 — listo para Supabase / Neon / RDS sin tocar UI.

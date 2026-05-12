@@ -7,16 +7,30 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { NavChart } from "@/components/charts/NavChart";
 import { ExposurePie } from "@/components/charts/ExposurePie";
 import { MonthlyBars } from "@/components/charts/MonthlyBars";
-import {
-  kpis, navSeries, monthlyReturns, annualReturns, positions, companies,
-  sectorExposure, regionExposure, marketCapExposure, topContributors, topDetractors, transactions,
-} from "@/lib/mock-data";
+import { getKpis, getNavSeries, getMonthlyReturns, getAnnualReturns, getPositions, getTransactions } from "@/lib/data/portfolio";
+import { getCompanies } from "@/lib/data/companies";
+import { getExposures, getTopContributors, getTopDetractors } from "@/lib/data/exposures";
 import { fmtMoney, fmtPct, pnlColor } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 const REPORTING_MONTH = "Abril 2026";
 
-export default function ReportingPage() {
-  const last12 = monthlyReturns;
+export default async function ReportingPage() {
+  const [kpis, navSeries, monthlyReturns, annualReturns, positions, companies, transactions, exposures, contributors, detractors] =
+    await Promise.all([
+      getKpis(),
+      getNavSeries(),
+      getMonthlyReturns(),
+      getAnnualReturns(),
+      getPositions(),
+      getCompanies(),
+      getTransactions(),
+      getExposures(),
+      getTopContributors(),
+      getTopDetractors(),
+    ]);
+  const byTicker = new Map(companies.map((c) => [c.ticker, c]));
   const sorted = [...positions].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight)).slice(0, 10);
   const recentChanges = transactions.slice(0, 5);
 
@@ -80,7 +94,7 @@ export default function ReportingPage() {
 
       <Card className="mb-4">
         <CardHeader title="Rentabilidad mensual (últimos 12m)" />
-        <CardBody><MonthlyBars data={last12} height={240} /></CardBody>
+        <CardBody><MonthlyBars data={monthlyReturns} height={240} /></CardBody>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -91,7 +105,7 @@ export default function ReportingPage() {
               <THead><TR><TH>Ticker</TH><TH>Sector</TH><TH>País</TH><TH align="right">Peso</TH><TH align="right">P/L</TH></TR></THead>
               <TBody>
                 {sorted.map(p => {
-                  const c = companies.find(x => x.ticker === p.ticker);
+                  const c = byTicker.get(p.ticker);
                   return (
                     <TR key={p.ticker}>
                       <TD><Link className="text-accent hover:underline" href={`/companies/${encodeURIComponent(p.ticker)}`}>{p.ticker}</Link></TD>
@@ -114,7 +128,7 @@ export default function ReportingPage() {
               <Table>
                 <THead><TR><TH>Empresa</TH><TH align="right">Return</TH><TH align="right">Contrib.</TH></TR></THead>
                 <TBody>
-                  {topContributors().map(c => (
+                  {contributors.map(c => (
                     <TR key={c.ticker}>
                       <TD><Link className="text-accent hover:underline" href={`/companies/${encodeURIComponent(c.ticker)}`}>{c.ticker}</Link> <span className="text-fg-muted text-xs ml-1">{c.name}</span></TD>
                       <TD numeric align="right" className={pnlColor(c.returnPct)}>{fmtPct(c.returnPct, 1)}</TD>
@@ -131,7 +145,7 @@ export default function ReportingPage() {
               <Table>
                 <THead><TR><TH>Empresa</TH><TH align="right">Return</TH><TH align="right">Contrib.</TH></TR></THead>
                 <TBody>
-                  {topDetractors().map(c => (
+                  {detractors.map(c => (
                     <TR key={c.ticker}>
                       <TD><Link className="text-accent hover:underline" href={`/companies/${encodeURIComponent(c.ticker)}`}>{c.ticker}</Link> <span className="text-fg-muted text-xs ml-1">{c.name}</span></TD>
                       <TD numeric align="right" className={pnlColor(c.returnPct)}>{fmtPct(c.returnPct, 1)}</TD>
@@ -148,15 +162,15 @@ export default function ReportingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <Card>
           <CardHeader title="Exposición sectorial" />
-          <CardBody><ExposurePie data={sectorExposure()} labelKey="sector" /></CardBody>
+          <CardBody><ExposurePie data={exposures.sector} labelKey="sector" /></CardBody>
         </Card>
         <Card>
           <CardHeader title="Exposición geográfica" />
-          <CardBody><ExposurePie data={regionExposure()} labelKey="region" /></CardBody>
+          <CardBody><ExposurePie data={exposures.region} labelKey="region" /></CardBody>
         </Card>
         <Card>
           <CardHeader title="Distribución por market cap" />
-          <CardBody><ExposurePie data={marketCapExposure()} labelKey="bucket" /></CardBody>
+          <CardBody><ExposurePie data={exposures.marketCap} labelKey="bucket" /></CardBody>
         </Card>
       </div>
 

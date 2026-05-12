@@ -7,26 +7,33 @@ import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { RunButton } from "@/components/agents/RunButton";
 import { RUNNABLE_SKILL_IDS } from "@/lib/anthropic/skills";
+import { getCompany } from "@/lib/data/companies";
+import { getPositions } from "@/lib/data/portfolio";
 import {
-  getCompany, getPosition, getThesisForTicker, getModelsForTicker,
-  getEarningsForTicker, getNewsForTicker, getEventsForTicker,
-} from "@/lib/mock-data";
+  getThesisForTicker, getModelsForTicker, getEarningsForTicker,
+  getNewsForTicker, getEventsForTicker,
+} from "@/lib/data/research";
 import { fmtNumber, fmtPct, pnlColor, sentimentColor } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 export default async function CompanyDetail({ params }: { params: Promise<{ ticker: string }> }) {
   const { ticker: rawTicker } = await params;
   const ticker = decodeURIComponent(rawTicker);
-  const company = getCompany(ticker);
+
+  const company = await getCompany(ticker);
   if (!company) notFound();
 
-  const position = getPosition(ticker);
-  const thesis = getThesisForTicker(ticker);
-  const models = getModelsForTicker(ticker);
-  const earningsList = getEarningsForTicker(ticker);
-  const newsList = getNewsForTicker(ticker);
-  const events = getEventsForTicker(ticker);
-
-  const activeModel = models.find(m => m.status === "Activo");
+  const [positions, thesis, models, earningsList, newsList, events] = await Promise.all([
+    getPositions(),
+    getThesisForTicker(ticker),
+    getModelsForTicker(ticker),
+    getEarningsForTicker(ticker),
+    getNewsForTicker(ticker),
+    getEventsForTicker(ticker),
+  ]);
+  const position = positions.find((p) => p.ticker === ticker);
+  const activeModel = models.find((m) => m.status === "Activo");
 
   return (
     <div>
@@ -77,7 +84,6 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         <Metric label="Tesis" value={thesis?.status ?? "—"} sub={thesis ? `→ ${thesis.decision}` : undefined} />
       </div>
 
-      {/* Thesis */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <Card className="lg:col-span-2">
           <CardHeader
@@ -158,7 +164,6 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         </Card>
       </div>
 
-      {/* Models */}
       <Card className="mb-4">
         <CardHeader
           title="Modelos de valoración"
@@ -203,7 +208,6 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         </CardBody>
       </Card>
 
-      {/* Earnings */}
       <Card className="mb-4">
         <CardHeader title="Earnings" subtitle="Histórico de resultados" />
         <CardBody className="p-0">
@@ -236,7 +240,6 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         </CardBody>
       </Card>
 
-      {/* News + Events */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader title="Noticias" subtitle="Clasificadas por IA · impacto en tesis" />
@@ -294,7 +297,6 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         </Card>
       </div>
 
-      {/* Value creation plan placeholder */}
       <Card className="mt-4">
         <CardHeader title="Value Creation / Catalyst Plan" subtitle="Palancas, KPIs y impacto sobre la tesis" />
         <CardBody className="p-0">
