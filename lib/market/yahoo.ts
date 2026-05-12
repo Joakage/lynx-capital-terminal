@@ -15,13 +15,18 @@ export class YahooProvider implements MarketDataProvider {
   async getQuotes(tickers: string[]): Promise<QuoteResult> {
     if (tickers.length === 0) return { quotes: [], errors: [] };
 
-    let yf: typeof import("yahoo-finance2").default | null = null;
+    // yahoo-finance2 default export is typed as a class but at runtime it's a
+    // ready-to-use singleton instance. Cast through `unknown` to a minimal
+    // surface so we don't fight the types.
+    type YahooLike = {
+      suppressNotices?: (notices: string[]) => void;
+      quote: (symbols: string | string[]) => Promise<unknown>;
+    };
+    let yf: YahooLike | null = null;
     try {
       const mod = await import("yahoo-finance2");
-      yf = mod.default;
-      // Silence the survey notice on first run
-      // @ts-expect-error — the library exposes suppressNotices at runtime
-      yf?.suppressNotices?.(["yahooSurvey"]);
+      yf = mod.default as unknown as YahooLike;
+      yf.suppressNotices?.(["yahooSurvey"]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {

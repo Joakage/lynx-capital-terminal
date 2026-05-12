@@ -95,7 +95,6 @@ export async function classifyNews(
       effort: "low",
       format: {
         type: "json_schema",
-        name: "NewsClassification",
         schema: SCHEMA,
       },
     },

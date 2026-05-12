@@ -132,7 +132,7 @@ export async function refreshIbkrTransactions(): Promise<IbkrRefreshResult> {
         id,
         ticker: normalizeTicker(t.symbol) ?? "?",
         status: "skipped",
-        date: parseDate(t.tradeDate),
+        date: parseDate(t.tradeDate) ?? undefined,
       });
       continue;
     }

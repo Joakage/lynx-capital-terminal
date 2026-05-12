@@ -16,12 +16,18 @@ export class YahooEarningsProvider implements EarningsCalendarProvider {
   async getUpcoming(tickers: string[], lookaheadDays: number): Promise<EarningsCalendarFetchResult> {
     if (tickers.length === 0) return { items: [], errors: [] };
 
-    let yf: typeof import("yahoo-finance2").default | null = null;
+    // yahoo-finance2 default export is typed as the class but at runtime it's
+    // a ready-to-use singleton instance. Cast through `unknown` to a minimal
+    // surface so we don't fight the types.
+    type YahooLike = {
+      suppressNotices?: (notices: string[]) => void;
+      quoteSummary: (symbol: string, opts: { modules: string[] }) => Promise<unknown>;
+    };
+    let yf: YahooLike | null = null;
     try {
       const mod = await import("yahoo-finance2");
-      yf = mod.default;
-      // @ts-expect-error — runtime helper
-      yf?.suppressNotices?.(["yahooSurvey"]);
+      yf = mod.default as unknown as YahooLike;
+      yf.suppressNotices?.(["yahooSurvey"]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {

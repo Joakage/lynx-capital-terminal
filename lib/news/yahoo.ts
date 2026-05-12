@@ -12,12 +12,20 @@ export class YahooNewsProvider implements NewsProvider {
   async getNews(tickers: string[], lookbackDays: number): Promise<NewsFetchResult> {
     if (tickers.length === 0) return { items: [], errors: [] };
 
-    let yf: typeof import("yahoo-finance2").default | null = null;
+    // yahoo-finance2 default export is typed as a class but at runtime it's a
+    // ready-to-use singleton instance.
+    type YahooLike = {
+      suppressNotices?: (notices: string[]) => void;
+      search: (
+        query: string,
+        opts: { newsCount?: number; quotesCount?: number },
+      ) => Promise<{ news?: unknown[] } | undefined>;
+    };
+    let yf: YahooLike | null = null;
     try {
       const mod = await import("yahoo-finance2");
-      yf = mod.default;
-      // @ts-expect-error — runtime helper, suppress survey banner
-      yf?.suppressNotices?.(["yahooSurvey"]);
+      yf = mod.default as unknown as YahooLike;
+      yf.suppressNotices?.(["yahooSurvey"]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
@@ -36,7 +44,6 @@ export class YahooNewsProvider implements NewsProvider {
         try {
           // newsCount can be up to ~10. quotesCount=0 so the response is news-only.
           const res = await yf!.search(yahooSymbol, { newsCount: 10, quotesCount: 0 });
-          // @ts-expect-error — types vary across yahoo-finance2 versions
           const news = (res?.news ?? []) as Array<{
             uuid?: string;
             title?: string;
