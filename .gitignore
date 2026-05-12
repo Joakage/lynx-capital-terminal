@@ -7,3 +7,5 @@ dist
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+data/agent-runs/*.json
+!data/agent-runs/.gitkeep
