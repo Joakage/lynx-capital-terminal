@@ -62,6 +62,7 @@ export class FmpProvider implements MarketDataProvider {
       quotes.push({
         ticker,
         price,
+        previousClose: typeof item.previousClose === "number" ? item.previousClose : undefined,
         change: typeof item.change === "number" ? item.change : undefined,
         changePct: typeof item.changesPercentage === "number" ? item.changesPercentage : undefined,
         timestamp: typeof item.timestamp === "number"

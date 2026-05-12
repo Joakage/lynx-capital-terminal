@@ -7,6 +7,8 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { RunButton } from "@/components/agents/RunButton";
 import { RefreshButton } from "@/components/market/RefreshButton";
 import { RefreshNewsButton } from "@/components/market/RefreshNewsButton";
+import { RefreshEarningsButton } from "@/components/market/RefreshEarningsButton";
+import { RefreshTransactionsButton } from "@/components/market/RefreshTransactionsButton";
 import { getKpis, getPositions } from "@/lib/data/portfolio";
 import { getAlerts } from "@/lib/data/research";
 import { fmtPct, pnlColor, severityColor } from "@/lib/utils";
@@ -30,7 +32,9 @@ export default async function ControlPage() {
         action={
           <div className="flex gap-2 flex-wrap justify-end">
             <RefreshButton label="Refresh quotes" variant="primary" />
+            <RefreshEarningsButton label="Refresh earnings" />
             <RefreshNewsButton label="Refresh news (IA)" />
+            <RefreshTransactionsButton label="Import IBKR trades" />
             <RunButton skillId="valuation-reviewer" skillName="valuation-reviewer" label="Revisar valoraciones" />
             <RunButton skillId="morning-note" skillName="morning-note" label="Morning Note" />
           </div>

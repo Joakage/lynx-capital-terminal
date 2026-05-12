@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/refresh/quotes",
+      "schedule": "30 21 * * 1-5"
+    },
+    {
+      "path": "/api/refresh/news",
+      "schedule": "0 7 * * 1-5"
+    },
+    {
+      "path": "/api/refresh/earnings",
+      "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/refresh/transactions",
+      "schedule": "0 22 * * 1-5"
+    }
+  ],
+  "functions": {
+    "app/api/refresh/news/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/refresh/transactions/route.ts": {
+      "maxDuration": 120
+    }
+  }
+}

@@ -11,6 +11,8 @@ export interface Quote {
   ticker: string;
   /** Last traded price in the security's native currency. */
   price: number;
+  /** Previous day's close. Used to derive daily moves of unfetched series (e.g. benchmark). */
+  previousClose?: number;
   /** Absolute change vs previous close, in native currency. */
   change?: number;
   /** Percent change vs previous close. */

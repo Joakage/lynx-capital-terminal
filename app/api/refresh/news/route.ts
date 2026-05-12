@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { refreshNews } from "@/lib/news/refresh";
+import { checkCronAuth } from "@/lib/auth/cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,14 +12,18 @@ export const maxDuration = 300;
  * POST /api/refresh/news
  *
  * For every position in the default portfolio: fetch recent news from
- * the configured provider (yahoo by default, fmp via FMP_API_KEY),
- * classify each new article with Claude (sentiment + thesisImpact +
- * category against the active thesis), insert into the `News` table.
+ * the configured provider, classify each new article with Claude
+ * against the active thesis, insert into the `News` table.
  *
  * Body (optional JSON):
  *   { "lookbackDays": 7, "maxClassifications": 40 }
+ *
+ * Gated by `lib/auth/cron.ts` when CRON_SECRET is set.
  */
 export async function POST(req: NextRequest) {
+  const unauth = checkCronAuth(req);
+  if (unauth) return unauth;
+
   let body: { lookbackDays?: number; maxClassifications?: number } = {};
   try {
     const text = await req.text();
@@ -39,9 +44,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { error: "Use POST para disparar el refresh de noticias." },
-    { status: 405 },
-  );
+export async function GET(req: NextRequest) {
+  return POST(req);
 }

@@ -133,11 +133,56 @@ Las llamadas a Claude se paralelizan; cap por defecto en **40 clasificaciones** 
 # NEWS_PROVIDER=fmp     # texto del artículo más rico; requiere FMP_API_KEY
 ```
 
-**Pendiente en 2C+:**
-- **Benchmark refresh** — ahora carry-forward del último valor. Próximo paso: fetch del precio del benchmark (`BENCHMARK_TICKER=SPY` por defecto) y mantener su NAV normalizada.
-- **Earnings calendar refresh** — fetch de fechas próximas desde FMP / Earnings Whispers → tabla `CalendarEvent`.
-- **IBKR Flex Query** — ingesta de operaciones reales como `Transaction`.
-- **Cron / scheduler** — refresh diario automático (Vercel Cron, GH Actions, o queue separada).
+### ✅ Fase 2C+ — Benchmark · Earnings · IBKR · Cron
+
+Cuatro tuberías adicionales en Control Room que cierran el ciclo de ingesta automatizada:
+
+**Benchmark refresh** — el mismo `POST /api/refresh/quotes` fetchea ahora también `BENCHMARK_TICKER` (default `SPY`). La `Quote` se extendió con `previousClose`; el NAV del benchmark avanza diariamente por `daily_move = price / previousClose`. Si el provider no devuelve `previousClose` se mantiene el valor anterior — degrada elegantemente.
+
+**Earnings calendar refresh** — botón **"Refresh earnings"** → `POST /api/refresh/earnings`. Para cada ticker en cartera, fetcheo de la próxima fecha de earnings (Yahoo via `quoteSummary({modules:["calendarEvents","earnings"]})` o FMP `/api/v3/earning_calendar` para mejor cobertura). Las filas futuras existentes para esos tickers se borran y reinsertan, así que la fecha siempre refleja la siguiente publicación.
+
+**IBKR Flex Query** — botón **"Import IBKR trades"** → `POST /api/refresh/transactions`. Pipeline de dos pasos:
+1. `FlexStatementService.SendRequest` con `IBKR_FLEX_TOKEN` + `IBKR_FLEX_QUERY_ID` → recibe `ReferenceCode`.
+2. Polling de `FlexStatementService.GetStatement` (12 intentos × 5s) hasta que IBKR genere el XML.
+3. Parse con `fast-xml-parser`, mapeo `Trade` → `Transaction` (`tradeID` como id estable, idempotente), auto-creación de la `Company` si no existe (FK constraint), mapeo `assetCategory` → `Equity`/`ETF`/`Bond`/`Option`/`Cash` y `buySell` → `Compra`/`Venta`.
+
+Cómo generar el token + query id: Account Management → Settings → Account Settings → Flex Web Service. La query debe incluir como mínimo la sección Trades.
+
+**Cron / scheduler** — `vercel.json` con 4 crons:
+
+| Endpoint | Schedule | Qué hace |
+|---|---|---|
+| `/api/refresh/quotes` | `30 21 * * 1-5` | Cierre post-mercado US (M-V) |
+| `/api/refresh/news` | `0 7 * * 1-5` | Mañana, antes de la apertura europea |
+| `/api/refresh/earnings` | `0 6 * * 1` | Semanal, lunes 06:00 UTC |
+| `/api/refresh/transactions` | `0 22 * * 1-5` | Tras cierre US |
+
+Auth gate vía `lib/auth/cron.ts`:
+- Si `CRON_SECRET` está set, las routes exigen `Authorization: Bearer ${CRON_SECRET}` (Vercel Cron lo añade automáticamente) **o** una request same-origin (el botón en /control).
+- Sin `CRON_SECRET`, no hay auth — modo dev.
+
+**Setup:**
+
+```bash
+# Benchmark (default SPY)
+BENCHMARK_TICKER=SPY
+
+# Earnings calendar provider (yahoo por defecto, fmp si quieres mejor cobertura)
+EARNINGS_PROVIDER=yahoo
+
+# IBKR Flex Query (opcional — solo si quieres ingestar operaciones reales)
+IBKR_FLEX_TOKEN=...
+IBKR_FLEX_QUERY_ID=...
+
+# Gate de las refresh routes (recomendado en prod)
+CRON_SECRET=...
+```
+
+**Backlog futuro:**
+- Reconciliación de `Position.quantity` derivada de la suma de transacciones (auto-compute desde IBKR).
+- Backfill histórico: muchas Flex Queries devuelven sólo el último día. Para historiar, configura una Flex Query con período `Last 365 Days` y corre `/api/refresh/transactions` una vez.
+- Dividend / corporate action handling — IBKR Flex también devuelve `<CashTransaction>` con DIVIDEND.
+- Reseteo automático de `data/agent-runs/*.json` legacy a la tabla `AgentRun` (script trivial).
 
 ## Arquitectura de datos
 
@@ -181,15 +226,17 @@ app/
     │   ├── run/route.ts         # POST: ejecuta una skill contra Claude
     │   └── runs/{route, [id]}/
     └── refresh/
-        ├── quotes/route.ts      # POST: refresh de cotizaciones + NAV + KPIs
-        └── news/route.ts        # POST: fetch noticias + Claude classify → News
+        ├── quotes/route.ts      # POST: refresh de cotizaciones + benchmark + NAV + KPIs
+        ├── news/route.ts        # POST: fetch noticias + Claude classify → News
+        ├── earnings/route.ts    # POST: próximas earnings dates → CalendarEvent
+        └── transactions/route.ts # POST: IBKR Flex Query → Transaction
 
 components/
 ├── layout/   Sidebar, Header, SubNav, PageHeader
 ├── charts/   NavChart, MonthlyBars, ExposurePie, DrawdownChart
 ├── ui/       Card, Table, Badge, Button, Metric
 ├── agents/   RunButton, RunDialog, MarkdownView, SkillCard
-└── market/   RefreshButton, RefreshNewsButton
+└── market/   RefreshButton, RefreshNewsButton, RefreshEarningsButton, RefreshTransactionsButton
 
 lib/
 ├── types.ts                     # Modelo de dominio TypeScript
@@ -208,27 +255,38 @@ lib/
 │   └── skills/{earnings-analysis,thesis-tracker,morning-note,valuation-reviewer,idea-generation}.ts
 ├── storage/
 │   └── agent-runs.ts            # DB cuando hay DATABASE_URL, filesystem cuando no
-├── market/                      # ◄── MARKET DATA INGEST (Phase 2C)
-│   ├── provider.ts              #     MarketDataProvider interface
+├── market/                      # ◄── MARKET DATA INGEST (Phase 2C / 2C+)
+│   ├── provider.ts              #     MarketDataProvider (Quote.previousClose para benchmark)
 │   ├── yahoo.ts                 #     yahoo-finance2 (sin API key)
 │   ├── fmp.ts                   #     Financial Modeling Prep (FMP_API_KEY)
 │   ├── factory.ts               #     getMarketProvider() según env
 │   ├── symbol-map.ts            #     canonical ticker → provider symbol
 │   ├── metrics.ts               #     computeKpis() puro
-│   └── refresh.ts               #     orchestrator: quotes → Position → NavPoint → KPI
-└── news/                        # ◄── NEWS + IA CLASSIFICATION (Phase 2C-news)
-    ├── provider.ts              #     NewsProvider interface
-    ├── yahoo.ts                 #     yahoo-finance2 search()
-    ├── fmp.ts                   #     FMP /stock_news (con texto del artículo)
-    ├── factory.ts               #     getNewsProvider()
-    ├── classify.ts              #     Claude classifier: sentiment + thesisImpact + category
-    └── refresh.ts               #     orchestrator: fetch → dedupe → classify → News.create
+│   ├── refresh.ts               #     orchestrator: quotes + benchmark → Position → NavPoint → KPI
+│   ├── earnings-provider.ts     #     EarningsCalendarProvider interface
+│   ├── earnings-yahoo.ts        #     Yahoo quoteSummary calendarEvents
+│   ├── earnings-fmp.ts          #     FMP /earning_calendar
+│   ├── earnings-factory.ts      #     getEarningsProvider()
+│   └── refresh-earnings.ts      #     orchestrator: próximas earnings → CalendarEvent
+├── news/                        # ◄── NEWS + IA CLASSIFICATION (Phase 2C-news)
+│   ├── provider.ts              #     NewsProvider interface
+│   ├── yahoo.ts                 #     yahoo-finance2 search()
+│   ├── fmp.ts                   #     FMP /stock_news (con texto del artículo)
+│   ├── factory.ts               #     getNewsProvider()
+│   ├── classify.ts              #     Claude classifier: sentiment + thesisImpact + category
+│   └── refresh.ts               #     orchestrator: fetch → dedupe → classify → News.create
+├── ibkr/                        # ◄── IBKR FLEX QUERY INGEST (Phase 2C+)
+│   ├── flex.ts                  #     send/poll + XML parse (fast-xml-parser)
+│   └── refresh.ts               #     orchestrator: Trade → Transaction (idempotent on tradeID)
+└── auth/
+    └── cron.ts                  #     gate /api/refresh/*: Bearer ${CRON_SECRET} o same-origin
 
 prisma/
 ├── schema.prisma                # ◄── ESQUEMA CANÓNICO (Phase 2B)
 └── seed.ts                      # idempotent upsert desde lib/mock-data.ts
 
 docker-compose.yml               # Postgres 16 local
+vercel.json                      # 4 crons + función timeouts (Phase 2C+)
 ```
 
 ## Filosofía de diseño

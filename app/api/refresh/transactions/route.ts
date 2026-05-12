@@ -1,26 +1,27 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { refreshQuotes } from "@/lib/market/refresh";
+import { refreshIbkrTransactions } from "@/lib/ibkr/refresh";
 import { checkCronAuth } from "@/lib/auth/cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 /**
- * POST /api/refresh/quotes
+ * POST /api/refresh/transactions
  *
- * Refreshes every position in the default portfolio against the
- * configured market data provider (Yahoo by default, FMP if
- * MARKET_DATA_PROVIDER=fmp + FMP_API_KEY set). Also fetches the
- * benchmark (BENCHMARK_TICKER, default "SPY") to advance the
- * benchmark NAV. Upserts today's NavPoint and a PortfolioKpi snapshot.
+ * Pull trades from IBKR Flex Query (IBKR_FLEX_TOKEN + IBKR_FLEX_QUERY_ID)
+ * and upsert them into the Transaction table. Idempotent on the IBKR
+ * tradeID — re-running never duplicates a fill.
  *
- * Gated by `lib/auth/cron.ts` when CRON_SECRET is set.
+ * Auto-creates any Company row whose ticker isn't in the DB so the
+ * Transaction.ticker → Company.ticker FK doesn't fail. You can edit
+ * those stubs in /companies/<ticker> later.
  */
 export async function POST(req: NextRequest) {
   const unauth = checkCronAuth(req);
   if (unauth) return unauth;
   try {
-    const result = await refreshQuotes();
+    const result = await refreshIbkrTransactions();
     return NextResponse.json(result, { status: result.ok ? 200 : 400 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Refresh failed";
@@ -28,7 +29,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** GET form used by Vercel Cron when it doesn't honour POST. Same behavior. */
 export async function GET(req: NextRequest) {
   return POST(req);
 }

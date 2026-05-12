@@ -103,6 +103,7 @@ export async function refreshQuotes(): Promise<RefreshQuotesResult> {
   }
 
   const tickers = positionRows.map((p) => p.ticker);
+  const benchmarkTicker = process.env.BENCHMARK_TICKER ?? "SPY";
 
   // ─── Pre-refresh totals ─────────────────────────────────
   const oldMarketValueSum = positionRows.reduce((a, p) => a + p.marketValue, 0);
@@ -113,7 +114,7 @@ export async function refreshQuotes(): Promise<RefreshQuotesResult> {
   const lastNav = lastKpi?.navCurrent ?? oldMarketValueSum;
   const cash = Math.max(0, lastNav - oldMarketValueSum);
 
-  // ─── Fetch quotes ───────────────────────────────────────
+  // ─── Fetch quotes (positions + benchmark in a single call) ──────
   let provider: ReturnType<typeof getMarketProvider>;
   try {
     provider = getMarketProvider();
@@ -135,8 +136,10 @@ export async function refreshQuotes(): Promise<RefreshQuotesResult> {
     };
   }
 
-  const { quotes, errors } = await provider.getQuotes(tickers);
+  const tickersIncludingBenchmark = Array.from(new Set([...tickers, benchmarkTicker]));
+  const { quotes, errors } = await provider.getQuotes(tickersIncludingBenchmark);
   const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
+  const benchmarkQuote = quoteByTicker.get(benchmarkTicker);
 
   // ─── Apply updates ────────────────────────────────────────
   const positionResults: PositionRefreshResult[] = [];
@@ -223,23 +226,33 @@ export async function refreshQuotes(): Promise<RefreshQuotesResult> {
     });
   }
 
-  // ─── Build the new NAV series (carry benchmark forward) ─────────
+  // ─── Build the new NAV series (move benchmark with its daily change) ─
   const navRows = await prisma.navPoint.findMany({
     where: { portfolioId },
     orderBy: { date: "asc" },
   });
-  const lastBenchmark = navRows.length > 0
+  const lastBenchmarkValue = navRows.length > 0
     ? navRows[navRows.length - 1].benchmark
     : 100;
 
+  let newBenchmarkValue = lastBenchmarkValue;
+  if (
+    benchmarkQuote?.price &&
+    benchmarkQuote.previousClose &&
+    benchmarkQuote.previousClose > 0
+  ) {
+    const dailyMove = benchmarkQuote.price / benchmarkQuote.previousClose;
+    newBenchmarkValue = lastBenchmarkValue * dailyMove;
+  }
+
   await prisma.navPoint.upsert({
     where: { portfolioId_date: { portfolioId, date: todayDate } },
-    update: { portfolioNav: newNav, benchmark: lastBenchmark },
+    update: { portfolioNav: newNav, benchmark: newBenchmarkValue },
     create: {
       portfolioId,
       date: todayDate,
       portfolioNav: newNav,
-      benchmark: lastBenchmark,
+      benchmark: newBenchmarkValue,
     },
   });
 
@@ -254,7 +267,7 @@ export async function refreshQuotes(): Promise<RefreshQuotesResult> {
     {
       date: todayDate.toISOString().slice(0, 10),
       portfolio: newNav,
-      benchmark: lastBenchmark,
+      benchmark: newBenchmarkValue,
     },
   ];
 

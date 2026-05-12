@@ -55,6 +55,7 @@ export class YahooProvider implements MarketDataProvider {
         quotes.push({
           ticker,
           price,
+          previousClose: (r as { regularMarketPreviousClose?: number }).regularMarketPreviousClose,
           change: (r as { regularMarketChange?: number }).regularMarketChange,
           changePct: (r as { regularMarketChangePercent?: number }).regularMarketChangePercent,
           timestamp: new Date().toISOString(),
