@@ -1,0 +1,307 @@
+// Lynx Capital Terminal — domain schema
+// Mirrors lib/types.ts. Uses String columns for enum-like fields so the
+// canonical labels (Spanish: "Alta" / "Activa" / "Refuerza" / ...) stay
+// unchanged across the stack. Validation happens at the TypeScript layer.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Portfolio {
+  id            String          @id @default(cuid())
+  name          String
+  baseCurrency  String          @default("USD")
+  inceptionDate DateTime
+  benchmarkId   String?
+  positions     Position[]
+  transactions  Transaction[]
+  navPoints     NavPoint[]
+  annualReturns AnnualReturn[]
+  kpis          PortfolioKpi[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Company {
+  ticker          String              @id
+  name            String
+  country         String
+  region          String              // "USA" | "Europa" | "China" | "Japón" | "LatAm" | "Otros"
+  sector          String
+  subsector       String
+  currency        String              // "USD" | "EUR" | "GBP" | "JPY" | "HKD"
+  marketCapBucket String
+  marketCapUsdBn  Float
+  description     String
+  style           String              // "Compounder" | "Deep Value" | ...
+  positions       Position[]
+  transactions    Transaction[]
+  theses          Thesis[]
+  models          ValuationModel[]
+  earnings        Earnings[]
+  news            News[]
+  events          CalendarEvent[]
+  watchlist       WatchlistItem[]
+  ideas           IdeaPipelineItem[]
+  alerts          Alert[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model Position {
+  id               String    @id @default(cuid())
+  portfolio        Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId      String
+  company          Company   @relation(fields: [ticker], references: [ticker])
+  ticker           String
+  quantity         Float
+  averageCost      Float
+  currentPrice     Float
+  weight           Float
+  marketValue      Float
+  unrealizedPnl    Float
+  unrealizedPnlPct Float
+  conviction       String    // "Alta" | "Media" | "Baja"
+  thesisStatus     String    // "Activa" | "En revisión" | "Rota"
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([portfolioId, ticker])
+  @@index([ticker])
+}
+
+model Transaction {
+  id          String    @id
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId String
+  date        DateTime
+  type        String    // "Equity" | "ETF" | "Bond" | "Option" | "Cash"
+  company     Company   @relation(fields: [ticker], references: [ticker])
+  ticker      String
+  side        String    // "Compra" | "Venta" | "Dividendo" | "Comisión" | "FX"
+  quantity    Float
+  price       Float
+  fees        Float     @default(0)
+  currency    String
+  rationale   String?
+  thesisId    String?
+
+  @@index([ticker])
+  @@index([date])
+}
+
+model Thesis {
+  id                 String   @id
+  company            Company  @relation(fields: [ticker], references: [ticker])
+  ticker             String
+  centralThesis      String
+  pillars            String[]
+  keyRisks           String[]
+  catalysts          String[]
+  invalidationPoints String[]
+  lastReviewDate     DateTime
+  conviction         String   // "Alta" | "Media" | "Baja"
+  status             String   // "Activa" | "En revisión" | "Rota"
+  decision           String   // "Comprar" | "Mantener" | "Aumentar" | "Reducir" | "Vender"
+  updatedAt          DateTime @updatedAt
+
+  @@index([ticker])
+}
+
+model ValuationModel {
+  id        String   @id
+  company   Company  @relation(fields: [ticker], references: [ticker])
+  ticker    String
+  modelType String   // "DCF" | "Comps" | "SOTP" | "3-Statement" | "LBO"
+  date      DateTime
+  fairValue Float
+  upsidePct Float
+  bear      Float?
+  bull      Float?
+  status    String   // "Activo" | "Archivado" | "Borrador"
+  author    String
+  createdAt DateTime @default(now())
+
+  @@index([ticker])
+}
+
+model Earnings {
+  id                 String   @id @default(cuid())
+  company            Company  @relation(fields: [ticker], references: [ticker])
+  ticker             String
+  period             String
+  date               DateTime
+  revenueSurprisePct Float
+  epsSurprisePct     Float
+  guidance           String   // "Raised" | "Maintained" | "Lowered" | "Withdrawn"
+  stockReactionPct   Float
+  note               String
+
+  @@unique([ticker, period])
+}
+
+model News {
+  id           String   @id
+  company      Company  @relation(fields: [ticker], references: [ticker])
+  ticker       String
+  date         DateTime
+  title        String
+  source       String
+  url          String?
+  category     String   // "Earnings" | "Guidance" | "M&A" | "Regulación" | ...
+  sentiment    String   // "Positivo" | "Neutro" | "Negativo"
+  thesisImpact String   // "Refuerza" | "Neutro" | "Vigilar" | "Invalida"
+  summary      String
+
+  @@index([ticker])
+  @@index([date])
+}
+
+model CalendarEvent {
+  id         String   @id
+  date       DateTime
+  ticker     String?
+  company    Company? @relation(fields: [ticker], references: [ticker])
+  title      String
+  type       String   // "Earnings" | "Macro" | "Investor Day" | "Dividend" | ...
+  importance String   // "Alta" | "Media" | "Baja"
+  notes      String?
+
+  @@index([date])
+  @@index([ticker])
+}
+
+model Alert {
+  id              String   @id
+  date            DateTime
+  severity        String   // "Alta" | "Media" | "Baja"
+  title           String
+  context         String?
+  suggestedAction String?
+  ticker          String?
+  company         Company? @relation(fields: [ticker], references: [ticker])
+
+  @@index([date])
+}
+
+model IdeaPipelineItem {
+  id         String   @id
+  ticker     String
+  company    Company? @relation(fields: [ticker], references: [ticker])
+  name       String
+  side       String   // "Long" | "Short"
+  sector     String
+  status     String
+  conviction String
+  nextStep   String
+}
+
+model WatchlistItem {
+  ticker       String   @id
+  company      Company? @relation(fields: [ticker], references: [ticker])
+  name         String
+  fairValue    Float
+  price        Float
+  upsidePct    Float
+  qualityScore Int
+  riskScore    Int
+  catalyst     String
+  score        Float
+}
+
+model Sector {
+  id              String   @id
+  name            String   @unique
+  marketSizeUsdBn Float
+  drivers         String[]
+  risks           String[]
+  topCompanies    String[]
+  avgFwdPE        Float
+  ideasLong       Int
+  ideasShort      Int
+}
+
+model NavPoint {
+  id          String    @id @default(cuid())
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId String
+  date        DateTime
+  portfolioNav Float
+  benchmark   Float
+
+  @@unique([portfolioId, date])
+  @@index([date])
+}
+
+model AnnualReturn {
+  id          String    @id @default(cuid())
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId String
+  year        Int
+  portfolioReturn Float
+  benchmark   Float
+
+  @@unique([portfolioId, year])
+}
+
+/// Snapshot of computed portfolio KPIs at a point in time.
+/// Latest row drives the dashboard headline metrics.
+model PortfolioKpi {
+  id                 String    @id @default(cuid())
+  portfolio          Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioId        String
+  asOf               DateTime
+  navCurrent         Float
+  navInception       Float
+  inceptionDate      DateTime
+  dailyReturnPct     Float
+  mtdPct             Float
+  ytdPct             Float
+  cumulativePct      Float
+  benchmarkYtdPct    Float
+  alphaYtdPct        Float
+  volAnnualizedPct   Float
+  sharpe             Float
+  sortino            Float
+  calmar             Float
+  maxDrawdownPct     Float
+  currentDrawdownPct Float
+  beta               Float
+  trackingErrorPct   Float
+  informationRatio   Float
+  cashPct            Float
+  herfindahl         Float
+
+  @@unique([portfolioId, asOf])
+}
+
+/// Persistent record of every Claude skill execution.
+/// Replaces the filesystem data/agent-runs/*.json storage.
+model AgentRun {
+  id                       String   @id
+  skillId                  String
+  skillName                String
+  area                     String
+  ticker                   String?
+  sector                   String?
+  question                 String?
+  model                    String
+  startedAt                DateTime
+  elapsedMs                Int
+  status                   String   // "Completado" | "Error" | "Pendiente" | "Ejecutándose"
+  stopReason               String
+  output                   String   @db.Text
+  inputTokens              Int
+  outputTokens             Int
+  cacheCreationInputTokens Int
+  cacheReadInputTokens     Int
+
+  @@index([startedAt])
+  @@index([skillId])
+  @@index([ticker])
+}

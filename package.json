@@ -1,16 +1,27 @@
 {
   "name": "lynx-capital-terminal",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset --skip-seed",
+    "postinstall": "prisma generate || echo 'prisma generate skipped (no DATABASE_URL or schema)'"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
+    "@prisma/client": "^5.22.0",
     "clsx": "^2.1.1",
     "next": "15.0.3",
     "react": "19.0.0-rc-66855b96-20241106",
@@ -28,7 +39,9 @@
     "eslint": "^9.14.0",
     "eslint-config-next": "15.0.3",
     "postcss": "^8.4.49",
+    "prisma": "^5.22.0",
     "tailwindcss": "^3.4.14",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3"
   }
 }
