@@ -3,10 +3,13 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { transactions } from "@/lib/mock-data";
+import { getTransactions } from "@/lib/data/portfolio";
 import { fmtNumber, fmtMoney } from "@/lib/utils";
 
-export default function TransactionsPage() {
+export const dynamic = "force-dynamic";
+
+export default async function TransactionsPage() {
+  const transactions = await getTransactions();
   const totalFees = transactions.reduce((a, t) => a + t.fees, 0);
   return (
     <div>

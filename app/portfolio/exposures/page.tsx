@@ -2,10 +2,10 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { ExposurePie } from "@/components/charts/ExposurePie";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import {
-  positions, companies, sectorExposure, regionExposure, marketCapExposure, currencyExposure,
-} from "@/lib/mock-data";
+import { getExposures } from "@/lib/data/exposures";
 import { fmtPct, pnlColor } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 const benchmarkSectorWeights: Record<string, number> = {
   "Technology": 30,
@@ -20,20 +20,8 @@ const benchmarkSectorWeights: Record<string, number> = {
   "Materials": 2,
 };
 
-export default function ExposuresPage() {
-  const sect = sectorExposure();
-  const reg = regionExposure();
-  const mc = marketCapExposure();
-  const cur = currencyExposure();
-
-  // Style exposure
-  const styleMap = new Map<string, number>();
-  for (const p of positions) {
-    const c = companies.find(x => x.ticker === p.ticker);
-    if (!c) continue;
-    styleMap.set(c.style, (styleMap.get(c.style) ?? 0) + p.weight);
-  }
-  const styleExp = Array.from(styleMap.entries()).map(([style, weight]) => ({ style, weight: +weight.toFixed(2) }));
+export default async function ExposuresPage() {
+  const exp = await getExposures();
 
   return (
     <div>
@@ -48,7 +36,7 @@ export default function ExposuresPage() {
                 <TR><TH>Sector</TH><TH align="right">Cartera</TH><TH align="right">Benchmark</TH><TH align="right">Over/Under</TH></TR>
               </THead>
               <TBody>
-                {sect.map(s => {
+                {exp.sector.map(s => {
                   const b = benchmarkSectorWeights[s.sector] ?? 0;
                   return (
                     <TR key={s.sector}>
@@ -65,22 +53,22 @@ export default function ExposuresPage() {
         </Card>
         <Card>
           <CardHeader title="Distribución sectorial" />
-          <CardBody><ExposurePie data={sect} labelKey="sector" height={280} /></CardBody>
+          <CardBody><ExposurePie data={exp.sector} labelKey="sector" height={280} /></CardBody>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
         <Card>
           <CardHeader title="Geográfica" />
-          <CardBody><ExposurePie data={reg} labelKey="region" /></CardBody>
+          <CardBody><ExposurePie data={exp.region} labelKey="region" /></CardBody>
         </Card>
         <Card>
           <CardHeader title="Market cap" />
-          <CardBody><ExposurePie data={mc} labelKey="bucket" /></CardBody>
+          <CardBody><ExposurePie data={exp.marketCap} labelKey="bucket" /></CardBody>
         </Card>
         <Card>
           <CardHeader title="Divisa" />
-          <CardBody><ExposurePie data={cur} labelKey="currency" /></CardBody>
+          <CardBody><ExposurePie data={exp.currency} labelKey="currency" /></CardBody>
         </Card>
       </div>
 
@@ -92,7 +80,7 @@ export default function ExposuresPage() {
               <TR><TH>Estilo</TH><TH align="right">Peso</TH></TR>
             </THead>
             <TBody>
-              {styleExp.sort((a, b) => b.weight - a.weight).map(s => (
+              {exp.style.map(s => (
                 <TR key={s.style}>
                   <TD>{s.style}</TD>
                   <TD numeric align="right">{s.weight.toFixed(1)}%</TD>

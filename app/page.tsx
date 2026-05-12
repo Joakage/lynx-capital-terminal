@@ -9,13 +9,26 @@ import { ExposurePie } from "@/components/charts/ExposurePie";
 import { MonthlyBars } from "@/components/charts/MonthlyBars";
 import { DrawdownChart } from "@/components/charts/DrawdownChart";
 import { RunButton } from "@/components/agents/RunButton";
-import {
-  kpis, navSeries, sectorExposure, regionExposure, marketCapExposure,
-  topContributors, topDetractors, alerts, monthlyReturns, researchQueue,
-} from "@/lib/mock-data";
+import { getKpis, getNavSeries, getMonthlyReturns } from "@/lib/data/portfolio";
+import { getAlerts, getResearchQueue } from "@/lib/data/research";
+import { getExposures, getTopContributors, getTopDetractors } from "@/lib/data/exposures";
 import { fmtMoney, fmtPct, pnlColor, severityColor } from "@/lib/utils";
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const [kpis, navSeries, monthlyReturns, exposures, contributors, detractors, alerts, researchQueue] =
+    await Promise.all([
+      getKpis(),
+      getNavSeries(),
+      getMonthlyReturns(),
+      getExposures(),
+      getTopContributors(),
+      getTopDetractors(),
+      getAlerts(),
+      getResearchQueue(),
+    ]);
+
   return (
     <div>
       <PageHeader
@@ -59,15 +72,15 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card>
             <CardHeader title="Por sector" />
-            <CardBody><ExposurePie data={sectorExposure()} labelKey="sector" /></CardBody>
+            <CardBody><ExposurePie data={exposures.sector} labelKey="sector" /></CardBody>
           </Card>
           <Card>
             <CardHeader title="Por región" />
-            <CardBody><ExposurePie data={regionExposure()} labelKey="region" /></CardBody>
+            <CardBody><ExposurePie data={exposures.region} labelKey="region" /></CardBody>
           </Card>
           <Card>
             <CardHeader title="Por market cap" />
-            <CardBody><ExposurePie data={marketCapExposure()} labelKey="bucket" /></CardBody>
+            <CardBody><ExposurePie data={exposures.marketCap} labelKey="bucket" /></CardBody>
           </Card>
           <Card>
             <CardHeader title="Convicción" />
@@ -98,7 +111,7 @@ export default function DashboardPage() {
                 </TR>
               </THead>
               <TBody>
-                {topContributors().map((c) => (
+                {contributors.map((c) => (
                   <TR key={c.ticker}>
                     <TD>
                       <Link className="text-accent hover:underline" href={`/companies/${encodeURIComponent(c.ticker)}`}>{c.ticker}</Link>
@@ -125,7 +138,7 @@ export default function DashboardPage() {
                 </TR>
               </THead>
               <TBody>
-                {topDetractors().map((c) => (
+                {detractors.map((c) => (
                   <TR key={c.ticker}>
                     <TD>
                       <Link className="text-accent hover:underline" href={`/companies/${encodeURIComponent(c.ticker)}`}>{c.ticker}</Link>

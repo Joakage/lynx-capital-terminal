@@ -4,29 +4,38 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { NavChart } from "@/components/charts/NavChart";
 import { MonthlyBars } from "@/components/charts/MonthlyBars";
 import { DrawdownChart } from "@/components/charts/DrawdownChart";
-import { annualReturns, kpis, monthlyReturns, navSeries } from "@/lib/mock-data";
+import { getKpis, getNavSeries, getMonthlyReturns, getAnnualReturns } from "@/lib/data/portfolio";
 import { fmtPct, pnlColor } from "@/lib/utils";
 
-const rows: Array<{ label: string; p: number; b: number; digits?: number; suffix?: string; tone?: "pos" | "neg" }> = [
-  { label: "MTD",              p: kpis.mtdPct,           b: 1.4,  digits: 2, suffix: "%" },
-  { label: "YTD",              p: kpis.ytdPct,           b: kpis.benchmarkYtdPct, digits: 2, suffix: "%" },
-  { label: "1 año",            p: 14.2,                  b: 10.8, digits: 2, suffix: "%" },
-  { label: "CAGR desde inicio",p: 11.6,                  b: 8.1,  digits: 2, suffix: "%" },
-  { label: "Volatilidad",      p: kpis.volAnnualizedPct, b: 17.0, digits: 2, suffix: "%" },
-  { label: "Sharpe",           p: kpis.sharpe,           b: 0.58, digits: 2 },
-  { label: "Sortino",          p: kpis.sortino,          b: 0.71, digits: 2 },
-  { label: "Calmar",           p: kpis.calmar,           b: 0.44, digits: 2 },
-  { label: "Max Drawdown",     p: kpis.maxDrawdownPct,   b: -18.5,digits: 1, suffix: "%" },
-  { label: "Beta",             p: kpis.beta,             b: 1.0,  digits: 2 },
-  { label: "Tracking error",   p: kpis.trackingErrorPct, b: 0,    digits: 2, suffix: "%" },
-  { label: "Information ratio",p: kpis.informationRatio, b: 0,    digits: 2 },
-];
+export const dynamic = "force-dynamic";
 
 function fmt(v: number, digits = 2, suffix = "") {
   return `${v.toFixed(digits)}${suffix}`;
 }
 
-export default function PerformancePage() {
+export default async function PerformancePage() {
+  const [kpis, navSeries, monthlyReturns, annualReturns] = await Promise.all([
+    getKpis(),
+    getNavSeries(),
+    getMonthlyReturns(),
+    getAnnualReturns(),
+  ]);
+
+  const rows: Array<{ label: string; p: number; b: number; digits?: number; suffix?: string }> = [
+    { label: "MTD",               p: kpis.mtdPct,           b: 1.4,                  digits: 2, suffix: "%" },
+    { label: "YTD",               p: kpis.ytdPct,           b: kpis.benchmarkYtdPct, digits: 2, suffix: "%" },
+    { label: "1 año",             p: 14.2,                  b: 10.8,                 digits: 2, suffix: "%" },
+    { label: "CAGR desde inicio", p: 11.6,                  b: 8.1,                  digits: 2, suffix: "%" },
+    { label: "Volatilidad",       p: kpis.volAnnualizedPct, b: 17.0,                 digits: 2, suffix: "%" },
+    { label: "Sharpe",            p: kpis.sharpe,           b: 0.58,                 digits: 2 },
+    { label: "Sortino",           p: kpis.sortino,          b: 0.71,                 digits: 2 },
+    { label: "Calmar",            p: kpis.calmar,           b: 0.44,                 digits: 2 },
+    { label: "Max Drawdown",      p: kpis.maxDrawdownPct,   b: -18.5,                digits: 1, suffix: "%" },
+    { label: "Beta",              p: kpis.beta,             b: 1.0,                  digits: 2 },
+    { label: "Tracking error",    p: kpis.trackingErrorPct, b: 0,                    digits: 2, suffix: "%" },
+    { label: "Information ratio", p: kpis.informationRatio, b: 0,                    digits: 2 },
+  ];
+
   return (
     <div>
       <PageHeader title="Performance" subtitle="Track record · cartera vs benchmark (MSCI ACWI proxy)" />

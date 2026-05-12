@@ -3,12 +3,21 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
-import { positions, companies, kpis } from "@/lib/mock-data";
+import { getKpis, getPositions } from "@/lib/data/portfolio";
+import { getCompanies } from "@/lib/data/companies";
 import { fmtMoney, fmtNumber, fmtPct, pnlColor } from "@/lib/utils";
 
-export default function PositionsPage() {
-  const grossLong  = positions.filter(p => p.weight > 0).reduce((a, p) => a + p.weight, 0);
-  const grossShort = positions.filter(p => p.weight < 0).reduce((a, p) => a + p.weight, 0);
+export const dynamic = "force-dynamic";
+
+export default async function PositionsPage() {
+  const [positions, companies, kpis] = await Promise.all([
+    getPositions(),
+    getCompanies(),
+    getKpis(),
+  ]);
+  const byTicker = new Map(companies.map((c) => [c.ticker, c]));
+  const grossLong = positions.filter((p) => p.weight > 0).reduce((a, p) => a + p.weight, 0);
+  const grossShort = positions.filter((p) => p.weight < 0).reduce((a, p) => a + p.weight, 0);
   const net = grossLong + grossShort;
 
   return (
@@ -38,7 +47,7 @@ export default function PositionsPage() {
       </div>
 
       <Card>
-        <CardHeader title="Cartera detallada" subtitle="Pondereado por valor de mercado · datos mock" />
+        <CardHeader title="Cartera detallada" subtitle="Pondereado por valor de mercado" />
         <CardBody className="p-0">
           <Table>
             <THead>
@@ -60,7 +69,7 @@ export default function PositionsPage() {
             </THead>
             <TBody>
               {positions.map((p) => {
-                const c = companies.find(x => x.ticker === p.ticker);
+                const c = byTicker.get(p.ticker);
                 return (
                   <TR key={p.ticker}>
                     <TD>
