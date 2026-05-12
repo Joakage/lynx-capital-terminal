@@ -21,7 +21,7 @@ export interface SkillDefinition {
   needsTicker: boolean;
   needsSector?: boolean;
   systemPrompt: string;
-  buildUserInstructions: (input: SkillRunInput) => string;
+  buildUserInstructions: (input: SkillRunInput) => Promise<string> | string;
   effort?: SkillEffort;
   adaptiveThinking?: boolean;
   maxTokens?: number;
