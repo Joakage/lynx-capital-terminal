@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { RunButton } from "@/components/agents/RunButton";
 import { sectors } from "@/lib/mock-data";
 
 export default function SectorsPage() {
@@ -36,10 +37,19 @@ export default function SectorsPage() {
                   {s.topCompanies.map(c => <Badge key={c} tone="muted">{c}</Badge>)}
                 </div>
               </div>
-              <div className="pt-2 border-t border-border-subtle flex items-center gap-3 text-2xs text-fg-muted">
-                <span>{s.ideasLong} ideas Long</span>
-                <span>·</span>
-                <span>{s.ideasShort} ideas Short</span>
+              <div className="pt-2 border-t border-border-subtle flex items-center justify-between gap-3 text-2xs text-fg-muted">
+                <div className="flex items-center gap-2">
+                  <span>{s.ideasLong} Long</span>
+                  <span>·</span>
+                  <span>{s.ideasShort} Short</span>
+                </div>
+                <RunButton
+                  skillId="idea-generation"
+                  skillName="idea-generation"
+                  label="Buscar ideas"
+                  sector={s.name}
+                  variant="secondary"
+                />
               </div>
             </CardBody>
           </Card>

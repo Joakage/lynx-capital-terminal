@@ -8,6 +8,7 @@ import { NavChart } from "@/components/charts/NavChart";
 import { ExposurePie } from "@/components/charts/ExposurePie";
 import { MonthlyBars } from "@/components/charts/MonthlyBars";
 import { DrawdownChart } from "@/components/charts/DrawdownChart";
+import { RunButton } from "@/components/agents/RunButton";
 import {
   kpis, navSeries, sectorExposure, regionExposure, marketCapExposure,
   topContributors, topDetractors, alerts, monthlyReturns, researchQueue,
@@ -193,21 +194,36 @@ export default function DashboardPage() {
           <CardBody>
             <div className="grid grid-cols-2 gap-2">
               {[
-                ["Morning Note", "morning-note"],
-                ["Revisar cartera", "portfolio-monitoring"],
-                ["Calendario catalizadores", "catalyst-calendar"],
-                ["Revisar valoraciones", "valuation-reviewer"],
-                ["Generar mensual", "client-report"],
-                ["Buscar ideas", "idea-generation"],
-              ].map(([label, skill]) => (
-                <Link
-                  key={skill}
-                  href={`/agents#${skill}`}
-                  className="flex flex-col items-start rounded-md border border-border bg-bg-elevated hover:bg-bg-hover transition-colors p-3"
+                { label: "Morning Note", skill: "morning-note", active: true },
+                { label: "Revisar valoraciones", skill: "valuation-reviewer", active: true },
+                { label: "Buscar ideas", skill: "idea-generation", active: true, sector: "Payments" },
+                { label: "Revisar cartera", skill: "portfolio-monitoring", active: false },
+                { label: "Catalizadores", skill: "catalyst-calendar", active: false },
+                { label: "Generar mensual", skill: "client-report", active: false },
+              ].map((item) => (
+                <div
+                  key={item.skill}
+                  className="flex flex-col gap-2 rounded-md border border-border bg-bg-elevated p-3"
                 >
-                  <span className="text-sm font-medium">{label}</span>
-                  <code className="text-2xs text-fg-muted mt-1">{skill}</code>
-                </Link>
+                  <div className="flex items-start justify-between">
+                    <span className="text-sm font-medium">{item.label}</span>
+                    {item.active && <Badge tone="pos">activa</Badge>}
+                  </div>
+                  <code className="text-2xs text-fg-muted">{item.skill}</code>
+                  {item.active ? (
+                    <RunButton
+                      skillId={item.skill}
+                      skillName={item.skill}
+                      label="Ejecutar"
+                      sector={item.sector}
+                      variant="secondary"
+                    />
+                  ) : (
+                    <Link href={`/agents#${item.skill}`} className="text-2xs text-accent hover:underline">
+                      Ver catálogo →
+                    </Link>
+                  )}
+                </div>
               ))}
             </div>
           </CardBody>

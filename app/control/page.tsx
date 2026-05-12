@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { RunButton } from "@/components/agents/RunButton";
 import { alerts, positions, kpis } from "@/lib/mock-data";
 import { fmtPct, pnlColor, severityColor } from "@/lib/utils";
 
@@ -13,7 +14,16 @@ export default function ControlPage() {
 
   return (
     <div>
-      <PageHeader title="Control Room" subtitle="Middle office · alertas, riesgo, drift y modelos desactualizados" />
+      <PageHeader
+        title="Control Room"
+        subtitle="Middle office · alertas, riesgo, drift y modelos desactualizados"
+        action={
+          <div className="flex gap-2">
+            <RunButton skillId="valuation-reviewer" skillName="valuation-reviewer" label="Revisar valoraciones" variant="primary" />
+            <RunButton skillId="morning-note" skillName="morning-note" label="Morning Note" />
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         <Card className="p-3"><div className="text-2xs uppercase text-fg-muted">Alertas activas</div><div className="text-lg font-semibold mt-1">{alerts.length}</div></Card>
