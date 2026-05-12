@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Metric } from "@/components/ui/Metric";
 import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
+import { RunButton } from "@/components/agents/RunButton";
+import { RUNNABLE_SKILL_IDS } from "@/lib/anthropic/skills";
 import {
   getCompany, getPosition, getThesisForTicker, getModelsForTicker,
   getEarningsForTicker, getNewsForTicker, getEventsForTicker,
@@ -48,9 +49,8 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         <div className="flex flex-col gap-2">
           <Link href="/companies" className="text-2xs text-accent hover:underline">← Empresas</Link>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="primary" size="sm">Earnings preview</Button>
-            <Button size="sm">Actualizar modelo</Button>
-            <Button size="sm">Revisar tesis</Button>
+            <RunButton skillId="earnings-analysis" skillName="earnings-analysis" label="Analizar resultados" ticker={ticker} variant="primary" />
+            <RunButton skillId="thesis-tracker" skillName="thesis-tracker" label="Revisar tesis" ticker={ticker} />
           </div>
         </div>
       </div>
@@ -125,25 +125,35 @@ export default async function CompanyDetail({ params }: { params: Promise<{ tick
         <Card>
           <CardHeader title="Acciones (Claude)" subtitle="Skills disponibles para esta ficha" />
           <CardBody className="space-y-1.5">
-            {[
+            {([
               ["Analizar resultados",        "earnings-analysis"],
+              ["Revisar tesis",               "thesis-tracker"],
               ["Earnings preview",            "earnings-preview"],
               ["Actualizar modelo",           "model-update"],
               ["Crear DCF nuevo",             "dcf-model"],
               ["Crear comps",                 "comps-analysis"],
               ["Auditar Excel",               "audit-xls"],
-              ["Revisar tesis",               "thesis-tracker"],
               ["Iniciar cobertura",           "initiating-coverage"],
               ["Plan creación de valor",     "value-creation-plan"],
-            ].map(([label, skill]) => (
-              <button
-                key={skill}
-                className="w-full flex items-center justify-between rounded-md border border-border bg-bg-elevated hover:bg-bg-hover transition-colors px-3 py-2 text-left"
-              >
-                <span className="text-sm">{label}</span>
-                <code className="text-2xs text-fg-muted">{skill}</code>
-              </button>
-            ))}
+            ] as const).map(([label, skill]) => {
+              const active = (RUNNABLE_SKILL_IDS as string[]).includes(skill);
+              return (
+                <div
+                  key={skill}
+                  className="w-full flex items-center justify-between rounded-md border border-border bg-bg-elevated hover:bg-bg-hover transition-colors px-3 py-2"
+                >
+                  <div className="flex flex-col items-start min-w-0">
+                    <span className="text-sm">{label}</span>
+                    <code className="text-2xs text-fg-muted">{skill}</code>
+                  </div>
+                  {active ? (
+                    <RunButton skillId={skill} skillName={skill} label="Ejecutar" ticker={ticker} variant="secondary" />
+                  ) : (
+                    <span className="text-2xs text-fg-subtle italic shrink-0">pendiente</span>
+                  )}
+                </div>
+              );
+            })}
           </CardBody>
         </Card>
       </div>
