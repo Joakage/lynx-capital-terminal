@@ -15,13 +15,14 @@ export const earningsAnalysisSkill: SkillDefinition = {
 
 Formato obligatorio: markdown con secciones numeradas. Sin preámbulos. Sin disclaimers genéricos. Cita los datos exactos del contexto (revenue surprise, EPS surprise, guidance, reacción de mercado). No inventes cifras que no estén en el contexto.`,
 
-  buildUserInstructions: (input) => {
+  buildUserInstructions: async (input) => {
     if (!input.ticker) {
       return "Especifica un ticker. Esta skill requiere un ticker concreto.";
     }
+    const focus = await buildTickerFocus(input.ticker);
     return `Analiza los últimos resultados de **${input.ticker}**. Usa el contexto de cartera y el focus del ticker abajo.
 
-${buildTickerFocus(input.ticker)}
+${focus}
 
 ---
 

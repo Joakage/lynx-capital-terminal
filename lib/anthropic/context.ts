@@ -1,16 +1,32 @@
 import {
-  kpis, positions, companies, theses, valuationModels, earnings, news,
-  calendarEvents, alerts, monthlyReturns, annualReturns, ideaPipeline, watchlist,
-  sectorExposure, regionExposure, marketCapExposure, currencyExposure,
-  topContributors, topDetractors,
-} from "@/lib/mock-data";
+  getKpis, getPositions, getMonthlyReturns, getAnnualReturns,
+} from "@/lib/data/portfolio";
+import { getCompanies, getCompany } from "@/lib/data/companies";
+import {
+  getTheses, getValuationModels, getEarnings, getNews, getCalendarEvents,
+  getAlerts, getIdeaPipeline, getWatchlist, getModelsForTicker,
+  getEarningsForTicker, getNewsForTicker, getEventsForTicker, getThesisForTicker,
+} from "@/lib/data/research";
+import { getExposures, getTopContributors, getTopDetractors } from "@/lib/data/exposures";
 
 /**
  * Build a stable, deterministic context string with all portfolio state.
  * Designed to be cacheable: stable ordering, no timestamps inside, only data.
  * The agent receives this as the cached prefix on every skill run.
  */
-export function buildCarteraContext(): string {
+export async function buildCarteraContext(): Promise<string> {
+  const [
+    kpis, positions, companies, theses, valuationModels, earnings, news,
+    calendarEvents, alerts, monthlyReturns, annualReturns, ideaPipeline, watchlist,
+    exposures, topContributors, topDetractors,
+  ] = await Promise.all([
+    getKpis(), getPositions(), getCompanies(), getTheses(), getValuationModels(),
+    getEarnings(), getNews(), getCalendarEvents(), getAlerts(), getMonthlyReturns(),
+    getAnnualReturns(), getIdeaPipeline(), getWatchlist(), getExposures(),
+    getTopContributors(), getTopDetractors(),
+  ]);
+  const byTicker = new Map(companies.map((c) => [c.ticker, c]));
+
   const parts: string[] = [];
 
   parts.push("# CONTEXTO DE CARTERA — LYNX CAPITAL");
@@ -45,25 +61,25 @@ export function buildCarteraContext(): string {
   parts.push("## POSICIONES ACTUALES");
   parts.push("(ticker | nombre | sector | país | peso | coste medio | precio | P/L% | convicción | tesis)");
   for (const p of [...positions].sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))) {
-    const c = companies.find(x => x.ticker === p.ticker);
+    const c = byTicker.get(p.ticker);
     parts.push(`- ${p.ticker} | ${c?.name ?? "—"} | ${c?.sector ?? "—"} | ${c?.country ?? "—"} | ${p.weight.toFixed(2)}% | ${p.averageCost} | ${p.currentPrice} | ${p.unrealizedPnlPct.toFixed(1)}% | ${p.conviction} | ${p.thesisStatus}`);
   }
   parts.push("");
 
   parts.push("## EXPOSICIONES");
-  parts.push("Sectorial: " + sectorExposure().map(s => `${s.sector} ${s.weight.toFixed(1)}%`).join(" · "));
-  parts.push("Geográfica: " + regionExposure().map(r => `${r.region} ${r.weight.toFixed(1)}%`).join(" · "));
-  parts.push("Market cap: " + marketCapExposure().map(m => `${m.bucket} ${m.weight.toFixed(1)}%`).join(" · "));
-  parts.push("Divisa: " + currencyExposure().map(c => `${c.currency} ${c.weight.toFixed(1)}%`).join(" · "));
+  parts.push("Sectorial: " + exposures.sector.map((s) => `${s.sector} ${s.weight.toFixed(1)}%`).join(" · "));
+  parts.push("Geográfica: " + exposures.region.map((r) => `${r.region} ${r.weight.toFixed(1)}%`).join(" · "));
+  parts.push("Market cap: " + exposures.marketCap.map((m) => `${m.bucket} ${m.weight.toFixed(1)}%`).join(" · "));
+  parts.push("Divisa: " + exposures.currency.map((c) => `${c.currency} ${c.weight.toFixed(1)}%`).join(" · "));
   parts.push("");
 
   parts.push("## TOP CONTRIBUTORS");
-  for (const c of topContributors()) {
+  for (const c of topContributors) {
     parts.push(`- ${c.ticker} (${c.name}): return ${c.returnPct.toFixed(1)}% · contribución ${c.contribPct.toFixed(2)}pp`);
   }
   parts.push("");
   parts.push("## TOP DETRACTORS");
-  for (const c of topDetractors()) {
+  for (const c of topDetractors) {
     parts.push(`- ${c.ticker} (${c.name}): return ${c.returnPct.toFixed(1)}% · contribución ${c.contribPct.toFixed(2)}pp`);
   }
   parts.push("");
@@ -81,7 +97,7 @@ export function buildCarteraContext(): string {
   }
 
   parts.push("## MODELOS DE VALORACIÓN ACTIVOS");
-  for (const m of valuationModels.filter(v => v.status === "Activo")) {
+  for (const m of valuationModels.filter((v) => v.status === "Activo")) {
     parts.push(`- ${m.ticker} | ${m.modelType} | FV ${m.fairValue} (bear ${m.bear ?? "—"} / bull ${m.bull ?? "—"}) | upside ${m.upsidePct.toFixed(1)}% | ${m.date} | ${m.id}`);
   }
   parts.push("");
@@ -130,14 +146,17 @@ export function buildCarteraContext(): string {
  * Per-ticker mini-context — for skills that focus on one position.
  * Lightweight, attached after the cached cartera context.
  */
-export function buildTickerFocus(ticker: string): string {
-  const c = companies.find(x => x.ticker === ticker);
-  const p = positions.find(x => x.ticker === ticker);
-  const t = theses.find(x => x.ticker === ticker);
-  const models = valuationModels.filter(m => m.ticker === ticker);
-  const tickerEarnings = earnings.filter(e => e.ticker === ticker);
-  const tickerNews = news.filter(n => n.ticker === ticker);
-  const tickerEvents = calendarEvents.filter(e => e.ticker === ticker);
+export async function buildTickerFocus(ticker: string): Promise<string> {
+  const [c, positions, t, models, tickerEarnings, tickerNews, tickerEvents] = await Promise.all([
+    getCompany(ticker),
+    getPositions(),
+    getThesisForTicker(ticker),
+    getModelsForTicker(ticker),
+    getEarningsForTicker(ticker),
+    getNewsForTicker(ticker),
+    getEventsForTicker(ticker),
+  ]);
+  const p = positions.find((x) => x.ticker === ticker);
 
   const parts: string[] = [];
   parts.push(`# FOCUS: ${ticker}`);

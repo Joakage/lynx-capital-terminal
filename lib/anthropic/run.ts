@@ -23,8 +23,10 @@ export async function runSkill(
   }
 
   const client = getClient();
-  const carteraContext = buildCarteraContext();
-  const userInstructions = skill.buildUserInstructions(input);
+  const [carteraContext, userInstructions] = await Promise.all([
+    buildCarteraContext(),
+    Promise.resolve(skill.buildUserInstructions(input)),
+  ]);
 
   const startedAt = Date.now();
 

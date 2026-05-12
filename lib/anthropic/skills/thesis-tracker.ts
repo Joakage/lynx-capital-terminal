@@ -15,13 +15,14 @@ export const thesisTrackerSkill: SkillDefinition = {
 
 Formato obligatorio: markdown con scorecard explícito. Cita evidencia del contexto (noticias, earnings, alertas).`,
 
-  buildUserInstructions: (input) => {
+  buildUserInstructions: async (input) => {
     if (!input.ticker) {
       return "Especifica un ticker. Esta skill requiere un ticker concreto.";
     }
+    const focus = await buildTickerFocus(input.ticker);
     return `Revisa la tesis vigente de **${input.ticker}**. Usa el contexto de cartera y el focus abajo.
 
-${buildTickerFocus(input.ticker)}
+${focus}
 
 ---
 

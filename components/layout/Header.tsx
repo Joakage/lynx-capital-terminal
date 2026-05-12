@@ -1,7 +1,8 @@
-import { kpis } from "@/lib/mock-data";
+import { getKpis } from "@/lib/data/portfolio";
 import { fmtMoney, fmtPct, pnlColor } from "@/lib/utils";
 
-export function Header() {
+export async function Header() {
+  const kpis = await getKpis();
   return (
     <header className="border-b border-border bg-bg-elevated">
       <div className="flex items-center justify-between gap-4 px-5 py-2.5">
