@@ -1,6 +1,6 @@
 {
   "name": "lynx-capital-terminal",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -29,7 +29,8 @@
     "react-markdown": "^9.0.1",
     "recharts": "^2.13.3",
     "remark-gfm": "^4.0.0",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "yahoo-finance2": "^2.13.3"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
