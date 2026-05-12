@@ -9,6 +9,7 @@ import { ExposurePie } from "@/components/charts/ExposurePie";
 import { MonthlyBars } from "@/components/charts/MonthlyBars";
 import { DrawdownChart } from "@/components/charts/DrawdownChart";
 import { RunButton } from "@/components/agents/RunButton";
+import { RefreshButton } from "@/components/market/RefreshButton";
 import { getKpis, getNavSeries, getMonthlyReturns } from "@/lib/data/portfolio";
 import { getAlerts, getResearchQueue } from "@/lib/data/research";
 import { getExposures, getTopContributors, getTopDetractors } from "@/lib/data/exposures";
@@ -34,6 +35,12 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Centro de mando · resumen de cartera, performance y catalizadores"
+        action={
+          <div className="flex gap-2">
+            <RefreshButton label="Refresh quotes" variant="primary" />
+            <RunButton skillId="morning-note" skillName="morning-note" label="Morning Note" />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-5">

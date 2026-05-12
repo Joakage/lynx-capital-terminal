@@ -12,6 +12,7 @@ Una plataforma privada para gestionar inversiones como si fueras un fondo profes
 - Recharts para gráficos
 - **`@anthropic-ai/sdk` con prompt caching + adaptive thinking** (claude-opus-4-7)
 - **Prisma + Postgres** como capa de datos canónica (Supabase/Neon-ready)
+- **`yahoo-finance2`** para refresh de cotizaciones (FMP opcional con key)
 - Fallback automático a dataset mock en `lib/mock-data.ts` cuando no hay `DATABASE_URL` — cero fricción en dev
 
 ## Cómo correr
@@ -82,15 +83,38 @@ El contexto de cartera (~5-15K tokens) viaja con `cache_control: { type: "epheme
 - `lib/storage/agent-runs.ts` graba en la tabla `AgentRun` si hay DB; filesystem JSON si no.
 - Compatibilidad: el mismo build funciona contra Supabase / Neon / Vercel Postgres / RDS — solo cambia `DATABASE_URL`.
 
-**Migración Phase 2A → 2B:** los runs viejos en `data/agent-runs/*.json` no se migran automáticamente (decisión consciente: empezar limpios en DB). Si los quieres importar, hay un script trivial pendiente.
+### ✅ Fase 2C — Market data ingest (quotes + NAV + KPI recompute)
 
-### ⏭️ Fase 2C — Market data ingest (pendiente)
+El botón **"Refresh quotes"** (Dashboard y Control Room) dispara un pipeline server-side que:
 
-- Cliente FMP / EODHD para precios diarios → actualiza `Position.currentPrice` + crea `NavPoint`
-- IBKR Flex Query → ingesta de operaciones reales como `Transaction`
-- SEC EDGAR + news APIs para filings y noticias
-- Job scheduler (cron en Next.js o queue separada) para refresco periódico
-- Worker que recalcula KPIs y guarda nueva fila en `PortfolioKpi` cada día
+1. Lee posiciones de la DB
+2. Llama al **market data provider** (Yahoo por defecto, FMP opcional) en una sola request
+3. Actualiza `Position.currentPrice`, `marketValue`, `unrealizedPnl`, `unrealizedPnlPct` y `weight` para cada ticker
+4. Calcula la nueva NAV (carry-forward del cash) y hace **upsert** del `NavPoint` de hoy
+5. Recalcula la snapshot completa de KPIs (`PortfolioKpi`) con las fórmulas de Sharpe / Sortino / Calmar / beta / tracking error / information ratio / drawdowns
+6. Devuelve el resultado por-ticker al cliente y dispara `router.refresh()` para re-renderizar la UI con los datos nuevos
+
+Es idempotente: ejecutar varias veces el mismo día actualiza el mismo `NavPoint` y `PortfolioKpi` por `asOf=hoy`.
+
+**Setup:**
+
+```bash
+# Por defecto Yahoo (sin key)
+MARKET_DATA_PROVIDER=yahoo
+
+# O bien FMP (free tier: 250 calls/día)
+MARKET_DATA_PROVIDER=fmp
+FMP_API_KEY=...
+```
+
+**Symbol mapping** vive en `lib/market/symbol-map.ts` — traduce nuestro ticker canónico (p.ej. `BRK.B`, `LVMH`, `NEXI`) al símbolo del provider (`BRK-B`, `MC.PA`, `NEXI.MI`).
+
+**Pendiente en 2C+:**
+- **Benchmark refresh** — ahora carry-forward del último valor. Próximo paso: fetch del precio del benchmark (`BENCHMARK_TICKER=SPY` por defecto) y mantener su NAV normalizada.
+- **News ingest con clasificación IA** — pipeline NewsAPI/RSS → Claude classify → tabla `News` con `sentiment` + `thesisImpact` por ticker.
+- **Earnings calendar refresh** — fetch de fechas próximas desde FMP / Earnings Whispers → tabla `CalendarEvent`.
+- **IBKR Flex Query** — ingesta de operaciones reales como `Transaction`.
+- **Cron / scheduler** — refresh diario automático (Vercel Cron, GH Actions, o queue separada).
 
 ## Arquitectura de datos
 
@@ -129,15 +153,19 @@ app/
 ├── control/page.tsx             # Control Room
 ├── reporting/page.tsx           # Monthly factsheet
 ├── agents/page.tsx              # Catálogo Claude agents + últimos runs
-└── api/agents/
-    ├── run/route.ts             # POST: ejecuta una skill contra Claude
-    └── runs/{route, [id]}/
+└── api/
+    ├── agents/
+    │   ├── run/route.ts         # POST: ejecuta una skill contra Claude
+    │   └── runs/{route, [id]}/
+    └── refresh/
+        └── quotes/route.ts      # POST: refresh de cotizaciones + NAV + KPIs
 
 components/
 ├── layout/   Sidebar, Header, SubNav, PageHeader
 ├── charts/   NavChart, MonthlyBars, ExposurePie, DrawdownChart
 ├── ui/       Card, Table, Badge, Button, Metric
-└── agents/   RunButton, RunDialog, MarkdownView, SkillCard
+├── agents/   RunButton, RunDialog, MarkdownView, SkillCard
+└── market/   RefreshButton
 
 lib/
 ├── types.ts                     # Modelo de dominio TypeScript
@@ -154,8 +182,16 @@ lib/
 │   ├── context.ts               # buildCarteraContext (ASYNC, lee de lib/data)
 │   ├── run.ts
 │   └── skills/{earnings-analysis,thesis-tracker,morning-note,valuation-reviewer,idea-generation}.ts
-└── storage/
-    └── agent-runs.ts            # DB cuando hay DATABASE_URL, filesystem cuando no
+├── storage/
+│   └── agent-runs.ts            # DB cuando hay DATABASE_URL, filesystem cuando no
+└── market/                      # ◄── MARKET DATA INGEST (Phase 2C)
+    ├── provider.ts              #     MarketDataProvider interface
+    ├── yahoo.ts                 #     yahoo-finance2 (sin API key)
+    ├── fmp.ts                   #     Financial Modeling Prep (FMP_API_KEY)
+    ├── factory.ts               #     getMarketProvider() según env
+    ├── symbol-map.ts            #     canonical ticker → provider symbol
+    ├── metrics.ts               #     computeKpis() puro
+    └── refresh.ts               #     orchestrator: quotes → Position → NavPoint → KPI
 
 prisma/
 ├── schema.prisma                # ◄── ESQUEMA CANÓNICO (Phase 2B)
