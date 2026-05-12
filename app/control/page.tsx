@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/Table";
 import { RunButton } from "@/components/agents/RunButton";
 import { RefreshButton } from "@/components/market/RefreshButton";
+import { RefreshNewsButton } from "@/components/market/RefreshNewsButton";
 import { getKpis, getPositions } from "@/lib/data/portfolio";
 import { getAlerts } from "@/lib/data/research";
 import { fmtPct, pnlColor, severityColor } from "@/lib/utils";
@@ -29,6 +30,7 @@ export default async function ControlPage() {
         action={
           <div className="flex gap-2 flex-wrap justify-end">
             <RefreshButton label="Refresh quotes" variant="primary" />
+            <RefreshNewsButton label="Refresh news (IA)" />
             <RunButton skillId="valuation-reviewer" skillName="valuation-reviewer" label="Revisar valoraciones" />
             <RunButton skillId="morning-note" skillName="morning-note" label="Morning Note" />
           </div>
